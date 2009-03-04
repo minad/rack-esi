@@ -34,7 +34,8 @@ module Rack
         uri = src + (i ? uri[i..-1] : '')
         inclusion_env = env.merge('PATH_INFO' => src,
                                   'REQUEST_PATH' => src,
-                                  'REQUEST_URI' => uri)
+                                  'REQUEST_URI' => uri,
+                                  'REQUEST_METHOD' => 'GET')
         join_body(@app.call(inclusion_env)[2]) # FIXME: Check the status
       end
       body
