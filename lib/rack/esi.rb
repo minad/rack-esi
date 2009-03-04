@@ -13,14 +13,17 @@ module Rack
       status, header, body = response = @app.call(env)
       return response if !xml?(header)
 
-      body = join_body(body)
+      processed_body = join_body(body)
 
-      return response unless body.include?('<esi:')
+      if !processed_body.include?('<esi:')
+        body.rewind if body.respond_to?(:rewind) rescue nil
+        return response
+      end
 
-      body = process_esi(body, env)
+      processed_body = process_esi(processed_body, env)
 
-      header['Content-Length'] = body.size.to_s
-      [status, header, [body]]
+      header['Content-Length'] = processed_body.size.to_s
+      [status, header, [processed_body]]
     end
 
     private
