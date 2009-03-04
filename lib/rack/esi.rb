@@ -1,52 +1,54 @@
-require "rack"
-require "hpricot"
+require 'rack'
 
+# See http://www.w3.org/TR/edge-arch
+# http://www.w3.org/TR/esi-lang
 class Rack::ESI
-  class Error < ::RuntimeError
-  end
-
   def initialize(app)
     @app = app
   end
 
   def call(env)
-    status, headers, enumerable_body = original_response = @app.call(env)
+    env.delete 'HTTP_IF_NONE_MATCH'
+    env.delete 'HTTP_IF_MODIFIED_SINCE'
 
-    return original_response unless headers["Content-Type"].to_s.match(/(ht|x)ml/) # FIXME: Use another pattern
+    status, header, body = response = @app.call(env)
+    return response if !xml?(header)
 
-    body = process_body(enumerable_body)
+    body = join_body(body)
 
-    return original_response unless body.include?("<esi:")
+    return response unless body.include?('<esi:')
 
-    xml = Hpricot.XML(body)
+    body = process_esi(body, env)
 
-    xml.search("esi:include") do |include_element|
-      if src = include_element["src"]
-        path_info = src                                     # TODO: Rewrite the URL to allow more than absolute paths
-        inclusion_env = env.merge("PATH_INFO" => path_info) # TODO: Do something with SCRIPT_NAME/REQUEST_PATH/REQUEST_URI
-        data = process_body(@app.call(inclusion_env)[2])    # FIXME: Check the status
-        new_element = Hpricot::Text.new(data)
-        include_element.parent.replace_child(include_element, new_element)
-      else
-        raise Error, "<esi:include .../> element without @src"
-      end
-    end
-
-    xml.search("esi:remove").remove
-
-    xml.search("esi:comment").remove
-
-    processed_body = xml.to_s
-    processed_headers = headers.merge("Content-Length" => processed_body.size.to_s)
-
-    [status, processed_headers, [processed_body]]
+    header = header.merge('Content-Length' => body.size.to_s)
+    [status, header, [body]]
   end
 
   private
 
-  def process_body(enumerable_body)
-    parts = []
-    enumerable_body.each { |part| parts << part }
-    return parts.join("")
+  def process_esi(body, env)
+    body.gsub!(/<esi:remove>.*?<\/esi:remove>|<esi:comment[^>]*\/>|\s*xmlns:esi=("[^"]+"|'[^']+')/, '')
+    body.gsub!(/<esi:include\s+src=("[^"]+"|'[^']+')\s*\/>/) do
+      src = $1[1..-2]
+      uri = env['REQUEST_URI'] || env['PATH_INFO']
+      i = uri.index('?')
+      uri = src + (i ? uri[i..-1] : '')
+      inclusion_env = env.merge('PATH_INFO' => src,
+                                'REQUEST_PATH' => src,
+                                'REQUEST_URI' => uri)
+      join_body(@app.call(inclusion_env)[2]) # FIXME: Check the status
+    end
+    body
+  end
+
+  def xml?(header)
+    # FIXME: Use another pattern
+    header['Content-Type'].to_s =~ /(ht|x)ml/
+  end
+
+  def join_body(body)
+    parts = ''
+    body.each { |part| parts << part }
+    parts
   end
 end

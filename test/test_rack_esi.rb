@@ -43,21 +43,24 @@ class TestRackESI < Test::Unit::TestCase
     assert_equal(expected_body, actual_body)
   end
 
-  def test_invalid_include_element_exception
-    mock_app = const([200, {"Content-Type" => "text/xml"}, ["<esi:include/>"]])
-    esi_app = Rack::ESI.new(mock_app)
-
-    assert_raise Rack::ESI::Error do
-      esi_app.call({})
-    end
-  end
-
   def test_remove
     mock_app = const([200, {"Content-Type" => "text/xml"}, ["<p>Hei! <esi:remove>Hei! </esi:remove>Hei!</p>"]])
 
     esi_app = Rack::ESI.new(mock_app)
 
     expected_body = ["<p>Hei! Hei!</p>"]
+
+    actual_body = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
+
+    assert_equal(expected_body, actual_body)
+  end
+
+  def test_remove_xmlns
+    mock_app = const([200, {"Content-Type" => "text/xml"}, ["<html xmlns:esi=\"esi\" lang=\"en\"><p>Hei!</p><esi:remove>removed</esi:remove>"]])
+
+    esi_app = Rack::ESI.new(mock_app)
+
+    expected_body = ["<html lang=\"en\"><p>Hei!</p>"]
 
     actual_body = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
 
