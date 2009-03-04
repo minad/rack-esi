@@ -1,3 +1,5 @@
+require 'hoe'
+
 namespace("tasks") do
   desc("Show TODOs")
   task("todo") do
@@ -13,9 +15,8 @@ end
 desc("Show TODOs and FIXMEs")
 task("tasks" => ["tasks:todo", "tasks:fixme"])
 
-require "rake/testtask"
-
-Rake::TestTask.new do |t|
-  t.test_files = FileList["test/test*.rb"]
-  t.verbose = true
+Hoe.new "rack-esi", '0.1' do |x|
+  x.developer 'Christoffer Sawicki', 'christoffer.sawicki@gmail.com'
+  x.developer 'Daniel Mendler', 'mail@daniel-mendler.de'
 end
+
