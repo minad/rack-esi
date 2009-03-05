@@ -1,10 +1,10 @@
-require "pathname"
+require 'test/unit'
+require 'rack/urlmap'
 
-$LOAD_PATH.unshift(Pathname(__FILE__).expand_path.dirname)
-$LOAD_PATH.unshift(Pathname(__FILE__).expand_path.dirname.parent.join("lib"))
+path = File.expand_path(File.dirname(__FILE__))
+$: << path << File.join(path, 'lib')
 
-require "test/unit"
-require "rack/esi"
+require 'rack/esi'
 
 class TestRackESI < Test::Unit::TestCase
   def test_response_passthrough
@@ -35,48 +35,51 @@ class TestRackESI < Test::Unit::TestCase
     })
 
     esi_app = Rack::ESI.new(app)
+    assert_equal ["Header, Index"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
+  end
 
-    expected_body = ["Header, Index"]
+  def test_include_with_alt
+    app = Rack::URLMap.new({
+      "/"    => const([200, {"Content-Type" => "text/xml"}, ["<esi:include src='/src' alt='/alt'/>, Index"]]),
+      "/src" => const([400, {"Content-Type" => "text/xml"}, ["Src"]]),
+      "/alt" => const([200, {"Content-Type" => "text/xml"}, ["Alt"]])
+    })
 
-    actual_body = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
+    esi_app = Rack::ESI.new(app)
+    assert_equal ["Alt, Index"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
+  end
 
-    assert_equal(expected_body, actual_body)
+  def test_include_with_alt_error
+    app = Rack::URLMap.new({
+      "/"    => const([200, {"Content-Type" => "text/xml"}, ["<esi:include src='/src' alt='/alt'/>, Index"]]),
+      "/src" => const([400, {"Content-Type" => "text/xml"}, ["Src"]]),
+      "/alt" => const([400, {"Content-Type" => "text/xml"}, ["Alt"]])
+    })
+
+    esi_app = Rack::ESI.new(app)
+    assert_raise RuntimeError do
+      esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")
+    end
   end
 
   def test_remove
     mock_app = const([200, {"Content-Type" => "text/xml"}, ["<p>Hei! <esi:remove>Hei! </esi:remove>Hei!</p>"]])
-
     esi_app = Rack::ESI.new(mock_app)
-
-    expected_body = ["<p>Hei! Hei!</p>"]
-
-    actual_body = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
-
-    assert_equal(expected_body, actual_body)
+    assert_equal ["<p>Hei! Hei!</p>"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
   end
 
   def test_remove_xmlns
     mock_app = const([200, {"Content-Type" => "text/xml"}, ["<html xmlns:esi=\"esi\" lang=\"en\"><p>Hei!</p><esi:remove>removed</esi:remove>"]])
 
     esi_app = Rack::ESI.new(mock_app)
-
-    expected_body = ["<html lang=\"en\"><p>Hei!</p>"]
-
-    actual_body = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
-
-    assert_equal(expected_body, actual_body)
+    assert_equal ["<html lang=\"en\"><p>Hei!</p>"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
   end
 
   def test_comment
     mock_app = const([200, {"Content-Type" => "text/xml"}, ["<p>(<esi:comment text='*'/>)</p>"]])
 
     esi_app = Rack::ESI.new(mock_app)
-
-    expected_body = ["<p>()</p>"]
-
-    actual_body = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
-
-    assert_equal(expected_body, actual_body)
+    assert_equal ["<p>()</p>"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
   end
 
   def test_setting_of_content_length
