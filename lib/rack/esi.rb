@@ -9,31 +9,29 @@ module Rack
     end
 
     def call(env)
-      status, header, body = response = @app.call(env)
-      return response if !applies_to?(header)
+      response = @app.call(env)
+      return response if !applies_to? response
 
-      processed_body = join_body(body)
+      status, header, body = response
 
-      if !processed_body.include?('<esi:')
-        body.rewind if body.respond_to?(:rewind) rescue nil
-        return response
-      end
+      body = process_esi(body.first, env)
 
-      processed_body = process_esi(processed_body, env)
-
-      header['Content-Length'] = processed_body.size.to_s
+      header['Content-Length'] = body.size.to_s
 
       if @no_cache
         # Client side caching information is removed because it might not apply to the whole document
+	# TODO: Think about a better way to do this without destroying caching information
+	# maybe merging "Cache-Control" headers from every fragment
         header.reject! {|key,value| %w(cache-control expires last-modified etag).include?(key.to_s.downcase) }
       end
 
-      [status, header, [processed_body]]
+      [status, header, [body]]
     end
 
     private
 
     # Process esi commands
+    # TODO: Implement more commands if they are needed
     def process_esi(body, env)
       body.gsub!(/<esi:remove>.*?<\/esi:remove>|<esi:comment[^>]*\/>|\s*xmlns:esi=("[^"]+"|'[^']+')/, '')
       body.gsub!(/<esi:include([^>]*)\/>/) do
@@ -71,10 +69,20 @@ module Rack
     end
 
     # Check if esi processing applies to response
-    def applies_to?(header)
-      @mime_types.any? do |type|
-        header['Content-Type'].to_s.include?(type)
+    def applies_to?(response)
+      status, header, body = response
+
+      # Some stati don't have to be processed
+      return false if [301, 302, 303, 307].include?(status)
+
+      # Check mime type
+      return false if @mime_types.all? do |type|
+        !header['Content-Type'].to_s.include?(type)
       end
+
+      # Find ESI tags
+      response[2] = [body = join_body(body)]
+      body.include?('<esi:')
     end
 
     # Join response body
