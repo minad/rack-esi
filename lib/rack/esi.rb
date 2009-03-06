@@ -51,6 +51,17 @@ module Rack
 
     # Fetch fragment from backend
     def get_fragment(env, src)
+      if src =~ %r{^\w+://}
+        get_remote_fragment(env, src)
+      else
+        get_local_fragment(env, src)
+      end
+    rescue Exception => ex
+      env['rack.errors'].write("Failed to fetch fragment #{src}: #{ex.message}") if env['rack.errors']
+      [500,{},nil]
+    end
+
+    def get_local_fragment(env, src)
       uri = env['REQUEST_URI'] || env['PATH_INFO']
       i = uri.index('?')
       uri = src + (i ? uri[i..-1] : '')
@@ -59,8 +70,11 @@ module Rack
                                 'REQUEST_URI' => uri,
                                 'REQUEST_METHOD' => 'GET')
       @app.call(inclusion_env)
-    rescue
-      [500,{},nil]
+    end
+
+    def get_remote_fragment(env, src)
+      require 'open-uri'
+      [200, {}, open(src).read]
     end
 
     # Parse xml attributes

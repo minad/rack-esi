@@ -62,6 +62,15 @@ class TestRackESI < Test::Unit::TestCase
     end
   end
 
+  def test_remote_include
+    app = Rack::URLMap.new({
+      "/" => const([200, {"Content-Type" => "text/xml"}, ["<esi:include src='http://rack.rubyforge.org/'/>, Index"]]),
+    })
+
+    esi_app = Rack::ESI.new(app)
+    assert esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2][0].include?('Rack: a Ruby Webserver Interface')
+  end
+
   def test_remove
     mock_app = const([200, {"Content-Type" => "text/xml"}, ["<p>Hei! <esi:remove>Hei! </esi:remove>Hei!</p>"]])
     esi_app = Rack::ESI.new(mock_app)
