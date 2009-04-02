@@ -116,7 +116,7 @@ module Rack
 
     # Parse xml attributes
     def attributes(attrs)
-      Hash[*attrs.split(/\s+/).map {|x| x =~ /^([^=]+)=("[^"]+"|'[^']+')$/ ? [$1, $2[1...-1]] : nil }.compact.flatten]
+      Hash[*attrs.scan(/\s*([^=]+)=("[^"]+"|'[^']+')\s*/).map {|a,b| [a, b[1...-1]] }.flatten]
     end
 
     # Check if esi processing applies to response
