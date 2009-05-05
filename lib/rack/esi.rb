@@ -101,6 +101,7 @@ module Rack
                                 'REQUEST_PATH' => src,
                                 'REQUEST_URI' => uri,
                                 'REQUEST_METHOD' => 'GET')
+      inclusion_env.delete('rack.request')
       @app.call(inclusion_env)
     end
 
