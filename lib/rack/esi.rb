@@ -27,6 +27,9 @@ module Rack
       end
 
       [status, header, [body]]
+    rescue Exception => ex
+      env['rack.errors'].write("#{ex.message}\n") if env['rack.errors']
+      [500, {}, ex.message]
     end
 
     private
@@ -72,11 +75,12 @@ module Rack
         if fragment_status != 200 && !attr['alt'].to_s.empty?
           fragment_status, fragment_header, fragment_body = get_fragment(env, attr['alt'])
         end
-        if fragment_status != 200 && attr['onerror'] != 'continue'
-          raise RuntimeError, "esi:include failed to include fragment #{attr['src']}"
+        if fragment_status != 200
+          raise RuntimeError, "esi:include failed to include fragment #{attr['src']} (Error #{fragment_status})" if attr['onerror'] != 'continue'
+        else
+          headers << fragment_header
+          join_body(fragment_body)
         end
-        headers << fragment_header
-        join_body(fragment_body)
       end
       [headers, body]
     end
@@ -89,8 +93,7 @@ module Rack
         get_local_fragment(env, src)
       end
     rescue Exception => ex
-      env['rack.errors'].write("Failed to fetch fragment #{src}: #{ex.message}") if env['rack.errors']
-      [500,{},nil]
+      [500, {}, '']
     end
 
     def get_local_fragment(env, src)
