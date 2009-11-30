@@ -74,6 +74,9 @@ module Rack
         fragment_status, fragment_header, fragment_body = get_fragment(env, attr['src'])
         if fragment_status != 200 && !attr['alt'].to_s.empty?
           fragment_status, fragment_header, fragment_body = get_fragment(env, attr['alt'])
+          if fragment_status != 200
+            raise RuntimeError, "esi:include failed to include alt fragment #{attr['alt']} (Error #{fragment_status})" if attr['onerror'] != 'continue'
+          end
         end
         if fragment_status != 200
           raise RuntimeError, "esi:include failed to include fragment #{attr['src']} (Error #{fragment_status})" if attr['onerror'] != 'continue'

@@ -57,9 +57,10 @@ class TestRackESI < Test::Unit::TestCase
     })
 
     esi_app = Rack::ESI.new(app)
-    assert_raise RuntimeError do
-      esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")
-    end
+    response = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")
+    assert_equal 500, response[0]
+    assert_equal({},  response[1])
+    assert_equal "esi:include failed to include alt fragment /alt (Error 400)", response[2]
   end
 
   def test_remote_include
