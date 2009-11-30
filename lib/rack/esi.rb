@@ -12,12 +12,15 @@ module Rack
     end
 
     def call(env)
+      # We're cloning the environment because we want to send the includes a fresh copy of it
+      # In Rails 2.3.5 + Mongrel, I was having problems unless this was done.
+      original_env = env.clone
       response = @app.call(env)
       return response if !applies_to? response
 
       status, header, body = response
 
-      headers, body = process_esi(body.first, env)
+      headers, body = process_esi(body.first, original_env)
       header['Content-Length'] = body.size.to_s
 
       if @no_cache
