@@ -1,4 +1,6 @@
 require 'open-uri'
+require 'rack/utils'
+require 'cgi'
 
 # See http://www.w3.org/TR/edge-arch
 # http://www.w3.org/TR/esi-lang
@@ -7,8 +9,6 @@ module Rack
     def initialize(app, opts = {})
       @app = app
       @mime_types = opts[:mime_types] || %w(application/xhtml+xml text/html text/xml application/xml)
-      @no_cache = opts[:no_cache] || false
-      @merge_cache = opts[:merge_cache] || false
     end
 
     def call(env)
@@ -20,14 +20,8 @@ module Rack
 
       status, header, body = response
 
-      headers, body = process_esi(body.first, original_env)
-      header['Content-Length'] = body.size.to_s
-
-      if @no_cache
-        destroy_cache_headers(header)
-      elsif @merge_cache
-        merge_cache_headers(header, headers)
-      end
+      body = process_esi(body.first, original_env)
+      header['Content-Length'] = Rack::Utils.bytesize(body).to_s
 
       [status, header, [body]]
     rescue Exception => ex
@@ -37,39 +31,9 @@ module Rack
 
     private
 
-    # Merge all caching headers
-    def merge_cache_headers(result, headers)
-      headers << result
-
-      last_modified = headers.map { |h| h['Last-Modified'] }.compact.map {|t| Time.httpdate(t) }.sort.last
-      result['Last-Modified'] = last_modified.httpdate if last_modified
-
-      last_modified = headers.map { |h| h['Expires'] }.compact.map {|t| Time.httpdate(t) }.sort.first
-      result['Expires'] = last_modified.httpdate if last_modified
-
-      cache_controls = headers.map { |h| (h['Cache-Control'] || 'no-cache').split(/\s*,\s*/) }.flatten
-
-      cache = []
-      cache << 'no-cache' if cache_controls.include?('no-cache')
-      cache << 'no-store' if cache_controls.include?('no-store')
-      cache << 'private' if cache_controls.include?('private')
-      cache << 'must-revalidate' if cache_controls.include?('must-revalidate')
-
-      max_age = cache_controls.select {|c| c =~ /^(max-age|s-maxage)/ }.map { |c| c.split('=')[1].to_i }.sort.first
-      cache << "max-age=#{max_age}" << "s-maxage=#{max_age}" if max_age
-
-      result['Cache-Control'] = cache.join(', ')
-    end
-
-    # Caching headers are destroyed because they might not apply to the whole document
-    def destroy_cache_headers(header)
-      header.reject! {|key,value| %w(cache-control expires last-modified etag).include?(key.to_s.downcase) }
-    end
-
     # Process esi commands
     # TODO: Implement more commands if they are needed
     def process_esi(body, env)
-      headers = []
       body.gsub!(/<esi:remove>.*?<\/esi:remove>|<esi:comment[^>]*\/>|\s*xmlns:esi=("[^"]+"|'[^']+')/, '')
       body.gsub!(/<esi:include([^>]*)\/>/) do
         attr = attributes($1)
@@ -84,11 +48,10 @@ module Rack
         if fragment_status != 200
           raise RuntimeError, "esi:include failed to include fragment #{attr['src']} (Error #{fragment_status})" if attr['onerror'] != 'continue'
         else
-          headers << fragment_header
           join_body(fragment_body)
         end
       end
-      [headers, body]
+      body
     end
 
     # Fetch fragment from backend
@@ -121,12 +84,12 @@ module Rack
       headers = Hash[*content.meta.map do |key, value|
         [key.split('-').map {|x| x.capitalize }.join('-'), value]
       end.flatten]
-      [200, headers, content]
+      [200, headers, [content]]
     end
 
     # Parse xml attributes
     def attributes(attrs)
-      Hash[*attrs.scan(/\s*([^=]+)=("[^"]+"|'[^']+')\s*/).map {|a,b| [a, b[1...-1]] }.flatten]
+      Hash[*attrs.scan(/\s*([^=]+)=("[^"]+"|'[^']+')\s*/).map {|a,b| [a, CGI.unescapeHTML(b[1...-1])] }.flatten]
     end
 
     # Check if esi processing applies to response

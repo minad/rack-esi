@@ -102,39 +102,6 @@ class TestRackESI < Test::Unit::TestCase
     assert_equal("9", response[1]["Content-Length"])
   end
 
-  def test_merge_cache_headers
-    Rack::ESI.class_eval { public :merge_cache_headers }
-    date1, date2, date3 = 'Fri, 06 Mar 2009 20:00:00 GMT', 'Fri, 06 Mar 2009 20:42:00 GMT', 'Fri, 06 Mar 2009 21:00:00 GMT'
-
-    header = { 'Last-Modified' => date1, 'Expires'=> date1 }
-    headers =
-      [
-       { 'Last-Modified' => date2, 'Expires' => date2 },
-       { 'Last-Modified' => date3, 'Expires' => date3 },
-      ]
-    Rack::ESI.new(nil).merge_cache_headers(header, headers)
-    assert_equal date3, header['Last-Modified']
-    assert_equal date1, header['Expires']
-
-    header = { 'Cache-Control' => 'no-cache' }
-    headers =
-      [
-       { 'Cache-Control' => 'public, max-age=10' },
-       { 'Cache-Control' => 'private, s-maxage=12' }
-      ]
-    Rack::ESI.new(nil).merge_cache_headers(header, headers)
-    assert_equal 'no-cache, private, max-age=10, s-maxage=10', header['Cache-Control']
-
-    header = { 'Cache-Control' => 'max-age=10' }
-    headers =
-      [
-       { 'Cache-Control' => 'private, must-revalidate, max-age=100' },
-       { 'Cache-Control' => 'public, must-revalidate, max-age=3' }
-      ]
-    Rack::ESI.new(nil).merge_cache_headers(header, headers)
-    assert_equal 'private, must-revalidate, max-age=3, s-maxage=3', header['Cache-Control']
-  end
-
   private
 
   def const(value)
