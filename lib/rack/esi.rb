@@ -25,8 +25,12 @@ module Rack
 
       [status, header, [body]]
     rescue Exception => ex
-      env['rack.errors'].write("#{ex.message}\n") if env['rack.errors']
-      [500, {}, ex.message]
+      if env['rack.errors']
+        env['rack.errors'].puts "#{ex.class}: #{ex.message}"
+        env['rack.errors'].puts ex.backtrace.map { |l| "\t" + l }
+        env['rack.errors'].flush
+      end
+      [500, {}, [ex.message]]
     end
 
     private
