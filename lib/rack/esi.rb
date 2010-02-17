@@ -20,7 +20,7 @@ module Rack
 
       status, header, body = response
 
-      body = process_esi(body.first, original_env)
+      body = process_esi(join_body(body), original_env)
       header['Content-Length'] = Rack::Utils.bytesize(body).to_s
 
       [status, header, [body]]
@@ -115,9 +115,10 @@ module Rack
 
     # Join response body
     def join_body(body)
-      parts = ''
-      body.each { |part| parts << part }
-      parts
+      result = ''
+      body.each { |part| result << part }
+      result.force_encoding('binary') if RUBY_VERSION > '1.9'
+      result
     end
   end
 end
