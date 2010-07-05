@@ -8,21 +8,21 @@ require 'rack/esi'
 
 class TestRackESI < Test::Unit::TestCase
   def test_response_passthrough
-    mock_app = const([200, {}, ["Hei!"]])
+    mock_app = const(200, {}, ["Hei!"])
     esi_app = Rack::ESI.new(mock_app)
 
     assert_same_response(mock_app, esi_app)
   end
 
   def test_xml_response_passthrough
-    mock_app = const([200, {"Content-Type" => "text/xml"}, ["<p>Hei!</p>"]])
+    mock_app = const(200, {"Content-Type" => "text/xml"}, ["<p>Hei!</p>"])
     esi_app = Rack::ESI.new(mock_app)
 
     assert_same_response(mock_app, esi_app)
   end
 
   def test_respect_for_content_type
-    mock_app = const([200, {"Content-Type" => "application/x-y-z"}, ["<esi:include src='/header'/><p>Hei!</p>"]])
+    mock_app = const(200, {"Content-Type" => "application/x-y-z"}, ["<esi:include src='/header'/><p>Hei!</p>"])
     esi_app = Rack::ESI.new(mock_app)
 
     assert_same_response(mock_app, esi_app)
@@ -30,19 +30,21 @@ class TestRackESI < Test::Unit::TestCase
 
   def test_include
     app = Rack::URLMap.new({
-      "/"       => const([200, {"Content-Type" => "text/xml"}, ["<esi:include src='/header'/>, Index"]]),
-      "/header" => const([200, {"Content-Type" => "text/xml"}, ["Header"]])
+      "/1"      => const(200, {"Content-Type" => "text/xml"}, ["<esi:include src='/header'/>, 1"]),
+      "/2"      => const(200, {"Content-Type" => "text/xml"}, ["<esi:include src='/header'>   </esi:include>, 2"]),
+      "/header" => const(200, {"Content-Type" => "text/xml"}, ["Header"])
     })
 
     esi_app = Rack::ESI.new(app)
-    assert_equal ["Header, Index"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
+    assert_equal ["Header, 1"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/1")[2]
+    assert_equal ["Header, 2"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/2")[2]
   end
 
   def test_include_with_alt
     app = Rack::URLMap.new({
-      "/"    => const([200, {"Content-Type" => "text/xml"}, ["<esi:include src='/src' alt='/alt'/>, Index"]]),
-      "/src" => const([400, {"Content-Type" => "text/xml"}, ["Src"]]),
-      "/alt" => const([200, {"Content-Type" => "text/xml"}, ["Alt"]])
+      "/"    => const(200, {"Content-Type" => "text/xml"}, ["<esi:include src='/src' alt='/alt'/>, Index"]),
+      "/src" => const(400, {"Content-Type" => "text/xml"}, ["Src"]),
+      "/alt" => const(200, {"Content-Type" => "text/xml"}, ["Alt"])
     })
 
     esi_app = Rack::ESI.new(app)
@@ -51,21 +53,21 @@ class TestRackESI < Test::Unit::TestCase
 
   def test_include_with_alt_error
     app = Rack::URLMap.new({
-      "/"    => const([200, {"Content-Type" => "text/xml"}, ["<esi:include src='/src' alt='/alt'/>, Index"]]),
-      "/src" => const([400, {"Content-Type" => "text/xml"}, ["Src"]]),
-      "/alt" => const([400, {"Content-Type" => "text/xml"}, ["Alt"]])
+      "/"    => const(200, {"Content-Type" => "text/xml"}, ["<esi:include src='/src' alt='/alt'/>, Index"]),
+      "/src" => const(400, {"Content-Type" => "text/xml"}, ["Src"]),
+      "/alt" => const(400, {"Content-Type" => "text/xml"}, ["Alt"])
     })
 
     esi_app = Rack::ESI.new(app)
     response = esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")
     assert_equal 500, response[0]
     assert_equal({},  response[1])
-    assert_equal "esi:include failed to include alt fragment /alt (Error 400)", response[2]
+    assert_equal ["esi:include failed to include alt fragment /alt (Error 400)"], response[2]
   end
 
   def test_remote_include
     app = Rack::URLMap.new({
-      "/" => const([200, {"Content-Type" => "text/xml"}, ["<esi:include src='http://rack.rubyforge.org/'/>, Index"]]),
+      "/" => const(200, {"Content-Type" => "text/xml"}, ["<esi:include src='http://rack.rubyforge.org/'/>, Index"]),
     })
 
     esi_app = Rack::ESI.new(app)
@@ -73,27 +75,27 @@ class TestRackESI < Test::Unit::TestCase
   end
 
   def test_remove
-    mock_app = const([200, {"Content-Type" => "text/xml"}, ["<p>Hei! <esi:remove>Hei! </esi:remove>Hei!</p>"]])
+    mock_app = const(200, {"Content-Type" => "text/xml"}, ["<p>Hei! <esi:remove>Hei! </esi:remove>Hei!</p>"])
     esi_app = Rack::ESI.new(mock_app)
     assert_equal ["<p>Hei! Hei!</p>"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
   end
 
   def test_remove_xmlns
-    mock_app = const([200, {"Content-Type" => "text/xml"}, ["<html xmlns:esi=\"esi\" lang=\"en\"><p>Hei!</p><esi:remove>removed</esi:remove>"]])
+    mock_app = const(200, {"Content-Type" => "text/xml"}, ["<html xmlns:esi=\"esi\" lang=\"en\"><p>Hei!</p><esi:remove>removed</esi:remove>"])
 
     esi_app = Rack::ESI.new(mock_app)
     assert_equal ["<html lang=\"en\"><p>Hei!</p>"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
   end
 
   def test_comment
-    mock_app = const([200, {"Content-Type" => "text/xml"}, ["<p>(<esi:comment text='*'/>)</p>"]])
+    mock_app = const(200, {"Content-Type" => "text/xml"}, ["<p>(<esi:comment text='*'/>)</p>"])
 
     esi_app = Rack::ESI.new(mock_app)
     assert_equal ["<p>()</p>"], esi_app.call("SCRIPT_NAME" => "", "PATH_INFO" => "/")[2]
   end
 
   def test_setting_of_content_length
-    mock_app = const([200, {"Content-Type" => "text/html"}, ["Osameli. <esi:comment text='*'/>"]])
+    mock_app = const(200, {"Content-Type" => "text/html"}, ["Osameli. <esi:comment text='*'/>"])
 
     esi_app = Rack::ESI.new(mock_app)
 
@@ -104,7 +106,7 @@ class TestRackESI < Test::Unit::TestCase
 
   private
 
-  def const(value)
+  def const(*value)
     lambda { |*_| value }
   end
 

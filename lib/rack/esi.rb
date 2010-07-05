@@ -39,7 +39,7 @@ module Rack
     # TODO: Implement more commands if they are needed
     def process_esi(body, env)
       body.gsub!(/<esi:remove>.*?<\/esi:remove>|<esi:comment[^>]*\/>|\s*xmlns:esi=("[^"]+"|'[^']+')/, '')
-      body.gsub!(/<esi:include([^>]*)\/>/) do
+      body.gsub!(/<esi:include([^>]*)(\/>|>\s*<\/esi:include>)/) do
         attr = attributes($1)
         raise ArgumentError, 'esi:include misses src attribute' if attr['src'].to_s.empty?
         fragment_status, fragment_header, fragment_body = get_fragment(env, attr['src'])
